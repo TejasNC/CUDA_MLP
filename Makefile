@@ -1,38 +1,31 @@
-# Makefile for MLP-CUDA project
-
 # Compiler settings
 CXX = g++
 NVCC = nvcc
 CXXFLAGS = -std=c++17 -Wall -O3
 NVCCFLAGS = -std=c++17 -O3
 
-# CUDA paths (adjust if different)
+# CUDA and library paths
 CUDA_PATH = /usr/local/cuda
-CUDA_INCLUDE = $(CUDA_PATH)/include
-CUDA_LIB = $(CUDA_PATH)/lib64
-
-# Include paths
-INCLUDES = -Iinclude -I$(CUDA_INCLUDE)
-
-# Library paths
-LIBS = -L$(CUDA_LIB) -lcudart
+INCLUDES = -Iinclude -I$(CUDA_PATH)/include
+LIBS = -L$(CUDA_PATH)/lib64 -lcudart -lcublas
 
 # Source files
-CPP_SOURCES = src/tensor.cpp src/layer.cpp src/mlp.cpp
+CPP_SOURCES = src/tensor.cpp src/module.cpp src/mlp.cpp src/neural_network.cpp
 CU_SOURCES = cuda/tensor_kernels.cu cuda/layer_kernels.cu
 
 # Object files
 CPP_OBJECTS = $(CPP_SOURCES:.cpp=.o)
 CU_OBJECTS = $(CU_SOURCES:.cu=.o)
 
-# Target executable
-TARGET = mlp_cuda
+# Target
+TARGET = main
 
-# Build rules
+# Default target
 all: $(TARGET)
 
-$(TARGET): $(CPP_OBJECTS) $(CU_OBJECTS)
-	$(CXX) $(CPP_OBJECTS) $(CU_OBJECTS) -o $@ $(LIBS)
+# Build main executable
+$(TARGET): $(CPP_OBJECTS) $(CU_OBJECTS) main.o
+	$(CXX) $^ -o $@ $(LIBS)
 
 # Compile C++ files
 %.o: %.cpp
@@ -42,9 +35,24 @@ $(TARGET): $(CPP_OBJECTS) $(CU_OBJECTS)
 %.o: %.cu
 	$(NVCC) $(NVCCFLAGS) $(INCLUDES) -c $< -o $@
 
-# Clean
-clean:
-	rm -f $(CPP_OBJECTS) $(CU_OBJECTS) $(TARGET)
+# Special rule for main.cpp
+main.o: main.cpp
+	$(CXX) $(CXXFLAGS) $(INCLUDES) -c $< -o $@
 
-# Phony targets
-.PHONY: all clean
+# Run the program
+run: $(TARGET)
+	./$(TARGET)
+
+# Clean build files
+clean:
+	rm -f $(CPP_OBJECTS) $(CU_OBJECTS) main.o $(TARGET)
+
+# Help
+help:
+	@echo "Available targets:"
+	@echo "  all    - Build the main executable"
+	@echo "  run    - Build and run the program"
+	@echo "  clean  - Remove all build files"
+	@echo "  help   - Show this help message"
+
+.PHONY: all run clean help

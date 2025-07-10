@@ -1,3 +1,0 @@
-/mnt/c/Users/tejas/OneDrive - Indian Institute of Technology Bombay/Desktop/projects/MLP-CUDA/build/CMakeFiles/mlp_cuda.dir
-/mnt/c/Users/tejas/OneDrive - Indian Institute of Technology Bombay/Desktop/projects/MLP-CUDA/build/CMakeFiles/edit_cache.dir
-/mnt/c/Users/tejas/OneDrive - Indian Institute of Technology Bombay/Desktop/projects/MLP-CUDA/build/CMakeFiles/rebuild_cache.dir

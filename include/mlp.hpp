@@ -1,8 +1,10 @@
 #pragma once
 
-#include "module.hpp"
-#include "tensor.hpp"
+#include "../include/cuda_utils.hpp"
+#include "../include/module.hpp"
+#include "../include/tensor.hpp"
 
+#include <cublas_v2.h>
 #include <memory>
 #include <vector>
 

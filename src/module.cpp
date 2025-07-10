@@ -1,5 +1,6 @@
 #include "../include/module.hpp"
 
+#include "../include/cuda_utils.hpp"
 #include "../include/layer_kernels.hpp"
 
 #include <algorithm>
@@ -118,9 +119,9 @@ const Tensor& SoftMax::backward(const Tensor& dLdA)
 {
     assert(dLdA.rows() == n && dLdA.cols() == b);
     // copy dLdA to dLdZ
-    cudaMemcpyAsync(dLdZ.data(), dLdA.data(), n * b * sizeof(float), cudaMemcpyDeviceToDevice,
-                    stream);
-    cudaStreamSynchronize(stream);
+    CUDA_CHECK(cudaMemcpyAsync(dLdZ.data(), dLdA.data(), n * b * sizeof(float),
+                               cudaMemcpyDeviceToDevice, stream));
+    CUDA_CHECK(cudaStreamSynchronize(stream));
 
     // don't need to apply softmax gradient here, as it is already done in NLL loss
     return dLdZ;
@@ -136,9 +137,20 @@ float CrossEntropyLoss::calc_loss(const Tensor& A, const Tensor& target)
     assert(A.rows() == n && A.cols() == b);
     assert(target.rows() == 1 && target.cols() == b);
 
+    // Allocate device memory for loss
+    float* d_loss;
+    CUDA_CHECK(cudaMalloc(&d_loss, sizeof(float)));
+
     // Compute the cross-entropy loss
+    launch_cross_entropy_loss_kernel(A.data(), target.data(), d_loss, n, b, stream);
+
+    // Copy result back to host
     float loss = 0.0f;
-    launch_cross_entropy_loss_kernel(A.data(), target.data(), &loss, n, b, stream);
+    CUDA_CHECK(cudaMemcpy(&loss, d_loss, sizeof(float), cudaMemcpyDeviceToHost));
+
+    // Free device memory
+    CUDA_CHECK(cudaFree(d_loss));
+
     return loss / (float) b; // Average loss over batch
 }
 
@@ -158,5 +170,6 @@ Tensor CrossEntropyLoss::predict_class(const Tensor& A)
 
     Tensor predictions(1, b, stream);
     launch_predict_class_kernel(A.data(), predictions.data(), n, b, stream);
+    CUDA_CHECK(cudaStreamSynchronize(stream)); // Ensure kernel completes before returning
     return predictions;
 }

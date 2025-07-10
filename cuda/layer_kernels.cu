@@ -9,7 +9,6 @@ __global__ void bias_add_kernel(float *Z, const float *b, int n,
   if (i < n && j < batch_size) {
     Z[cuda_utils::get_2d_idx(i, j, n)] += b[i];
   }
-
 }
 
 void launch_bias_add_kernel(float *Z, const float *b, int n, int batch_size,
@@ -142,7 +141,7 @@ void launch_cross_entropy_loss_kernel(const float *A, const float *target,
                                       float *loss, int n, int b,
                                       cudaStream_t stream) {
   // Initialize loss to 0
-  cudaMemsetAsync(loss, 0, sizeof(float), stream);
+  CUDA_CHECK(cudaMemsetAsync(loss, 0, sizeof(float), stream));
 
   dim3 block(256);
   dim3 grid(CEIL_DIV(b, block.x));

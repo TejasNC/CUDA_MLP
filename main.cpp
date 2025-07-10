@@ -1,8 +1,5 @@
-#include "include/cuda_utils.hpp"
 #include "include/mlp.hpp"
-#include "include/tensor.hpp"
 
-#include <cublas_v2.h>
 #include <iostream>
 #include <random>
 #include <vector>
@@ -75,6 +72,9 @@ int main()
             float loss = mlp.train_step(input, target, learning_rate);
             std::cout << "Epoch " << epoch + 1 << ", Loss: " << loss << std::endl;
         }
+
+        // Ensure all training operations are complete before prediction
+        CUDA_CHECK(cudaDeviceSynchronize());
 
         // Test prediction
         Tensor             predictions   = mlp.predict(input);
