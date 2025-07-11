@@ -1,5 +1,7 @@
 #include "include/mlp.hpp"
 
+#include <chrono>
+#include <cmath>
 #include <iostream>
 #include <random>
 #include <vector>
@@ -34,58 +36,111 @@ int main()
         // Create MLP
         MLP mlp(input_size, output_size, batch_size, hidden_sizes, stream);
 
-        // Create dummy data for testing
+        // Create input tensor for inference
         Tensor input(input_size, batch_size, stream);
-        Tensor target(1, batch_size, stream);
 
-        // Initialize with random data
+        // Initialize with random data (simulating MNIST-like inputs)
         std::random_device                    rd;
         std::mt19937                          gen(rd());
         std::uniform_real_distribution<float> input_dist(-1.0f, 1.0f);
-        std::uniform_int_distribution<int>    target_dist(0, output_size - 1);
 
         std::vector<float> h_input(input_size * batch_size);
-        std::vector<float> h_target(batch_size);
-
         for (int i = 0; i < input_size * batch_size; ++i)
         {
             h_input[i] = input_dist(gen);
         }
-
-        for (int i = 0; i < batch_size; ++i)
-        {
-            h_target[i] = static_cast<float>(target_dist(gen));
-        }
-
         input.copy_from_host(h_input);
-        target.copy_from_host(h_target);
 
-        // Training parameters
-        float learning_rate = 0.001f;
-        int   num_epochs    = 10;
+        std::cout << "Network Architecture: " << input_size << " -> " << hidden_sizes[0] << " -> "
+                  << hidden_sizes[1] << " -> " << output_size << std::endl;
+        std::cout << "Batch size: " << batch_size << std::endl;
+        std::cout << "\nStarting inference timing..." << std::endl;
 
-        std::cout << "Starting training..." << std::endl;
-
-        // Training loop
-        for (int epoch = 0; epoch < num_epochs; ++epoch)
+        // Warm-up runs
+        const int num_warmup = 10;
+        std::cout << "Performing " << num_warmup << " warm-up runs..." << std::endl;
+        for (int i = 0; i < num_warmup; ++i)
         {
-            float loss = mlp.train_step(input, target, learning_rate);
-            std::cout << "Epoch " << epoch + 1 << ", Loss: " << loss << std::endl;
+            Tensor predictions = mlp.predict(input);
+            CUDA_CHECK(cudaStreamSynchronize(stream));
         }
 
-        // Ensure all training operations are complete before prediction
-        CUDA_CHECK(cudaDeviceSynchronize());
+        // Timed inference runs
+        const int           num_runs = 100;
+        std::vector<double> inference_times;
+        inference_times.reserve(num_runs);
 
-        // Test prediction
-        Tensor             predictions   = mlp.predict(input);
-        std::vector<float> h_predictions = predictions.to_cpu();
+        std::cout << "Running " << num_runs << " timed inference iterations..." << std::endl;
 
-        std::cout << "\nPredictions for first 5 samples:" << std::endl;
+        for (int i = 0; i < num_runs; ++i)
+        {
+            // Start timing
+            auto start = std::chrono::high_resolution_clock::now();
+
+            // Run inference
+            Tensor predictions = mlp.predict(input);
+
+            // Ensure GPU operations are complete
+            CUDA_CHECK(cudaStreamSynchronize(stream));
+
+            // End timing
+            auto end = std::chrono::high_resolution_clock::now();
+
+            // Calculate duration in microseconds
+            auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+            inference_times.push_back(duration.count());
+
+            if ((i + 1) % 20 == 0)
+            {
+                std::cout << "Completed " << (i + 1) << " runs..." << std::endl;
+            }
+        }
+
+        // Calculate statistics
+        double total_time = 0.0;
+        double min_time   = inference_times[0];
+        double max_time   = inference_times[0];
+
+        for (double time : inference_times)
+        {
+            total_time += time;
+            min_time = std::min(min_time, time);
+            max_time = std::max(max_time, time);
+        }
+
+        double avg_time = total_time / num_runs;
+
+        // Calculate standard deviation
+        double variance = 0.0;
+        for (double time : inference_times)
+        {
+            variance += (time - avg_time) * (time - avg_time);
+        }
+        variance /= num_runs;
+        double std_dev = std::sqrt(variance);
+
+        // Print results
+        std::cout << "\n=== INFERENCE TIMING RESULTS ===" << std::endl;
+        std::cout << "Number of runs: " << num_runs << std::endl;
+        std::cout << "Average time per inference: " << avg_time << " μs (" << avg_time / 1000.0
+                  << " ms)" << std::endl;
+        std::cout << "Minimum time: " << min_time << " μs (" << min_time / 1000.0 << " ms)"
+                  << std::endl;
+        std::cout << "Maximum time: " << max_time << " μs (" << max_time / 1000.0 << " ms)"
+                  << std::endl;
+        std::cout << "Standard deviation: " << std_dev << " μs" << std::endl;
+        std::cout << "Throughput: " << (batch_size * 1000000.0) / avg_time << " samples/second"
+                  << std::endl;
+
+        // Show a sample prediction result
+        Tensor             final_predictions = mlp.predict(input);
+        std::vector<float> h_predictions     = final_predictions.to_cpu();
+
+        std::cout << "\nSample predictions (first 5 samples):" << std::endl;
         for (int i = 0; i < std::min(5, batch_size); ++i)
         {
             std::cout << "Sample " << i
-                      << ": Predicted class = " << static_cast<int>(h_predictions[i])
-                      << ", True class = " << static_cast<int>(h_target[i]) << std::endl;
+                      << ": Predicted class = " << static_cast<int>(h_predictions[i]) << std::endl;
         }
 
         // Cleanup
@@ -101,6 +156,6 @@ int main()
     // Cleanup cuBLAS
     cublasDestroy(global_cublas_handle);
 
-    std::cout << "\nTraining completed successfully!" << std::endl;
+    std::cout << "\nInference timing completed successfully!" << std::endl;
     return 0;
 }
