@@ -32,3 +32,8 @@ https://www.kaggle.com/code/tejaszz/benchmarking
 - Training accuracy stuck at ~10% (random guessing level) for MNIST
 - Likely bugs in gradient computation or weight updates
 - Need debugging of numerical implementation
+
+**Resources:**
+
+I made Notion notes while learning CUDA Programming which can be found here:
+https://www.notion.so/CUDA-Programming-227209f8df35808fae45f80159cce0ab?source=copy_link
